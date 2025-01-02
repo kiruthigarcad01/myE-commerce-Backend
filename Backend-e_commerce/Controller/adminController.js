@@ -1,79 +1,98 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 
 const addProduct = async (req, res) => {
-    const { name, description, category, price, rating, seller, stock, imageUrl } = req.body;
-    const adminId = req.adminId;
-  
-    
-    if (!name || !description || !category || !price || !rating || !seller || !stock || !imageUrl || !adminId) {
-        return res.status(400).json({ message: 'All fields are required' });
-    }
-
     try {
-        
+        console.log('File:', req.file);
+        console.log('Body:', req.body);
+
+      
+        const { name, description, category, price, rating, seller, stock, adminId, image } = req.body;
+
+        if (!name || !price || !adminId) {
+           
+            return res.status(400).json({ error: 'Name, price, and adminId are required' });
+        }
+
+        const fileContent = Buffer.from(image, 'base64')
+
+
         const newProduct = await prisma.product.create({
             data: {
-              name,
-              description,
-              category,
-              price,
-              rating,
-              seller,
-              stock,
-              imageUrl,
-              admin: {
-                connect: {
-                  id : adminId
+                name,
+                description,
+                category,
+                price: parseFloat(price),
+                rating: rating ? parseFloat(rating) : null,
+                seller,
+                stock: parseInt(stock),
+                image: fileContent,
+                admin: {
+                    connect: {
+                        id: parseInt(adminId),
+                    },
                 },
-              }
-            }
-          });
-          
-        console.log('Product added:', newProduct);  
-        res.status(201).json({ message: 'Product added successfully', product: newProduct });  
+            },
+        });
+
+
+        res.status(201).json(newProduct);
     } catch (error) {
-        console.error('Error adding product:', error);  
-        res.status(500).json({ message: 'Internal server error' });  
+        
+        console.error('Error creating product:', error);
+        res.status(500).json({ error: 'Failed to create product', details: error.message });
     }
 };
 
+
+
 const editProduct = async (req, res) => {
-  const { id } = req.params; 
-  const { name, description, category, price, rating, seller, stock, imageUrl } = req.body;
-  const adminId = req.adminId;
+    try {
+        const productId = parseInt(req.params.id);
+        
+        const existingProduct = await prisma.product.findUnique({
+            where: { id: productId }
+        });
 
-  if (!id || !adminId) {
-      return res.status(400).json({ message: 'Product ID and admin ID are required' });
-  }
+        if (!existingProduct) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
 
-  try {
-      
-      const product = await prisma.product.findUnique({
-          where: { id: parseInt(id) },
-      });
+        const { name, description, category, price, rating, seller, stock, image } = req.body;
 
-      if (!product || product.adminId !== adminId) {
-          return res.status(403).json({ message: 'Unauthorized to edit this product' });
-      }
+        // Prepare the data to be updated
+        const updateData = { 
+            name, 
+            description, 
+            category, 
+            price: price ? parseFloat(price) : undefined, 
+            rating: rating ? parseFloat(rating) : undefined, 
+            seller, 
+            stock: stock ? parseInt(stock) : undefined 
+        }; 
 
-      
-      const updatedProduct = await prisma.product.update({
-          where: { id: parseInt(id) },
-          data: { name, description, category, price, rating, seller, stock, imageUrl },
-      });
+        // Handle image update if provided
+        if (image) {
+            const fileContent = Buffer.from(image, 'base64');
+            updateData.image = fileContent;
+        }
 
-      console.log('Product updated:', updatedProduct);
-      res.status(200).json({ message: 'Product updated successfully', product: updatedProduct });
-  } catch (error) {
-      console.error('Error updating product:', error);
-      res.status(500).json({ message: 'Internal server error' });
-  }
+        const updatedProduct = await prisma.product.update({
+            where: { id: productId },
+            data: updateData,
+        });
+
+        res.json(updatedProduct);
+    } catch (error) {
+        console.error('Error updating product:', error);
+        res.status(500).json({ error: 'Failed to update product', details: error.message });
+    }
 };
 
+    
+  
 
 const deleteProduct = async (req, res) => {
   const { id } = req.params; 
@@ -110,11 +129,11 @@ const deleteProduct = async (req, res) => {
 
 const viewOrders = async (req, res) => {
     try {
-        // Retrieve all orders with customer and product details
+        
         const orders = await prisma.order.findMany({
             include: {
-                customer: true, // Include customer details
-                products: true, // Include product details in the order
+                customer: true, 
+                products: true, 
             },
         });
 
@@ -126,15 +145,15 @@ const viewOrders = async (req, res) => {
 };
 
 const updateOrderStatus = async (req, res) => {
-    const { id } = req.params; // Order ID
-    const { status } = req.body; // New status
+    const { id } = req.params; 
+    const { status } = req.body; 
 
     if (!id || !status) {
         return res.status(400).json({ message: 'Order ID and status are required' });
     }
 
     try {
-        // Update the order status
+        
         const updatedOrder = await prisma.order.update({
             where: { id: parseInt(id) },
             data: { status },
@@ -148,14 +167,14 @@ const updateOrderStatus = async (req, res) => {
 };
 
 const cancelOrder = async (req, res) => {
-    const { id } = req.params; // Order ID
+    const { id } = req.params; 
 
     if (!id) {
         return res.status(400).json({ message: 'Order ID is required' });
     }
 
     try {
-        // Update the status to "Cancelled"
+        
         const canceledOrder = await prisma.order.update({
             where: { id: parseInt(id) },
             data: { status: 'Cancelled' },
@@ -169,14 +188,14 @@ const cancelOrder = async (req, res) => {
 };
 
 const filterOrdersByStatus = async (req, res) => {
-    const { status } = req.query; // Status to filter by (e.g., "Pending", "Shipped")
+    const { status } = req.query; 
 
     if (!status) {
         return res.status(400).json({ message: 'Status is required for filtering' });
     }
 
     try {
-        // Retrieve orders with the specified status
+       
         const filteredOrders = await prisma.order.findMany({
             where: { status },
             include: {
@@ -193,6 +212,5 @@ const filterOrdersByStatus = async (req, res) => {
 };
 
 
-module.exports = { addProduct, editProduct, deleteProduct, viewOrders, updateOrderStatus,cancelOrder, filterOrdersByStatus  };
-
+module.exports = { addProduct, editProduct, deleteProduct, viewOrders, updateOrderStatus, cancelOrder, filterOrdersByStatus };
 

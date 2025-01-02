@@ -24,7 +24,7 @@ model Product {
   rating        Float
   seller        String
   stock         Int
-  imageUrl      String
+  image         Bytes?      @map("image") @db.LongBlob
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   adminId       Int
@@ -33,6 +33,7 @@ model Product {
   cartItems     CartItem[]  @relation("ProductCartItems")
   orderItems    OrderItem[] @relation("ProductOrderItems")
 }
+
 
 model Wishlist {
   id         Int      @id @default(autoincrement())
