@@ -62,7 +62,7 @@ const editProduct = async (req, res) => {
 
         const { name, description, category, price, rating, seller, stock, image } = req.body;
 
-        // Prepare the data to be updated
+        
         const updateData = { 
             name, 
             description, 
@@ -73,7 +73,7 @@ const editProduct = async (req, res) => {
             stock: stock ? parseInt(stock) : undefined 
         }; 
 
-        // Handle image update if provided
+        
         if (image) {
             const fileContent = Buffer.from(image, 'base64');
             updateData.image = fileContent;
